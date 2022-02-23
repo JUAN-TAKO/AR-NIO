@@ -10,36 +10,39 @@ public class ReaderAutomata {
 	
 	State state = State.READING_LENGTH;
 	byte[] data;
-	ByteBuffer buffer = ByteBuffer.allocate(4);
+	ByteBuffer buffer = ByteBuffer.allocate(64);
 	int length;
+	int to_read;
 	
-	private int read(SelectionKey key) throws IOException {
+	private boolean read(SelectionKey key) throws IOException {
 		SocketChannel sc = (SocketChannel) key.channel();
 		int n = sc.read(buffer);
 		if (n == -1) {
 			key.cancel();  // communication with server is broken
-			sc.close(); 		
+			sc.close();
+			return false;
 		}
-		return n;
+		buffer.rewind();
+		return true;
 	}
+	
 	void handleRead(SelectionKey key) throws IOException{
 				
 		if (state == State.READING_LENGTH) {
-			
-			buffer.rewind();
-			read(key);
+			if(!read(key)) return;
 			length = buffer.getInt();
 			data = new byte[length];
+			to_read = length;
 			
 			state = State.READING_MSG;
 		} 
 		else if (state == State.READING_MSG) {
-			
-			buffer.rewind();
-			buffer = ByteBuffer.allocate(Math.max(length, 4));
-			buffer.get(data);
-			
-			state = State.READING_LENGTH;
+			if(!read(key)) return;
+			int r = Math.min(data.length, to_read);
+			buffer.get(data, 0, r);
+			to_read -= r;
+			if(to_read == 0)
+				state = State.READING_LENGTH;
 		}
 	}
 }
