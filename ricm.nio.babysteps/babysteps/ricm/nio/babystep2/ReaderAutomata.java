@@ -10,15 +10,16 @@ public class ReaderAutomata {
 	
 	State state = State.READING_LENGTH;
 	byte[] data;
-	ByteBuffer buffer = ByteBuffer.allocate(256);
+	ByteBuffer buffer = ByteBuffer.allocate(64);
 	int length;
 	int bytes_read;
+	SelectionKey key;
 	
-	public ReaderAutomata() {
-
+	public ReaderAutomata(SelectionKey k) {
+		key = k;
 	}
 	
-	private boolean read(SelectionKey key) throws IOException {
+	private boolean read() throws IOException {
 		SocketChannel sc = (SocketChannel) key.channel();
 		buffer.rewind();
 		int n = sc.read(buffer);
@@ -31,10 +32,10 @@ public class ReaderAutomata {
 		return true;
 	}
 	
-	public void handleRead(SelectionKey key) throws IOException{
-				
+	public boolean handleRead() throws IOException{
+		System.out.println("handle read");
 		if (state == State.READING_LENGTH) {
-			if(!read(key)) return;
+			if(!read()) return false;
 			length = buffer.getInt();
 			data = new byte[length];
 			bytes_read = 0;
@@ -42,22 +43,29 @@ public class ReaderAutomata {
 			state = State.READING_MSG;
 		} 
 		else if (state == State.READING_MSG) {
-			if(!read(key)) return;
-			int r = Math.min(data.length, length-bytes_read);
-			System.out.println("get " + r);
+			int u = buffer.capacity() - buffer.position();
+			if(u <= 0)
+				read();
+			u = buffer.capacity() - buffer.position();
+			int r = Math.min(u, length - bytes_read);
 			buffer.get(data, 0, r);
 			bytes_read += r;
 			System.out.println("bytes read " + bytes_read);
 			System.out.println("remaining " + (length - bytes_read));
-			if(bytes_read == length)
+			
+			if(bytes_read == length) {
 				state = State.READING_LENGTH;
+				return true;
+			}
 		}
+		return false;
 	}
 	public boolean available() {
 		return state == State.READING_LENGTH;
 	}
 	public byte[] get() {
 		assert(available());
+		System.out.println("get");
 		return data;
 	}
 }

@@ -13,6 +13,10 @@ import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.Iterator;
 
+import ricm.nio.babystep2.IOAutomata;
+import ricm.nio.babystep2.ReaderAutomata;
+import ricm.nio.babystep2.WriterAutomata;
+
 /**
  * NIO elementary client 
  * Implements an overly simplified echo client system
@@ -21,7 +25,6 @@ import java.util.Iterator;
  */
 
 public class NioClient {
-	private static final int INBUF_SZ = 2048;
 
 	// The client channel to communicate with the server 
 	private SocketChannel sc;
@@ -31,10 +34,8 @@ public class NioClient {
 
 	// NIO selector
 	private Selector selector;
-
-	// Buffers for outgoing messages & incoming messages
-	ByteBuffer outBuffer;
-	ByteBuffer inBuffer;
+	
+	private IOAutomata automata;
 
 	// The message to send to the server
 	byte[] first;  
@@ -65,11 +66,12 @@ public class NioClient {
 
 		// register a CONNECT interest for channel sc 
 		skey = sc.register(selector, SelectionKey.OP_CONNECT);
-
+		
 		// request to connect to the server
 		InetAddress addr;
 		addr = InetAddress.getByName(serverName);
 		sc.connect(new InetSocketAddress(addr, port));
+		
 	}
 
 	/**
@@ -79,6 +81,7 @@ public class NioClient {
 	public void loop() throws IOException {
 		System.out.println("NioClient running");
 		while (true) {
+			System.out.println("loop");
 			// wait for some events
 			selector.select();
 
@@ -124,7 +127,8 @@ public class NioClient {
 
 		// once connected, send a message to the server
 		digest = md5(first);
-		send(first, 0, first.length);
+		automata = new IOAutomata(new ReaderAutomata(key), new WriterAutomata(key));
+		send(first);
 	}
 
 	/**
@@ -135,36 +139,27 @@ public class NioClient {
 	private void handleRead(SelectionKey key) throws IOException {
 		assert (this.skey == key);
 		assert (sc == key.channel());
+		
+		if(automata.reader.handleRead()) {
+			byte[] data = automata.reader.get();
 
-		inBuffer.allocate(4);
-		int n = sc.read(inBuffer);
-		if (n == -1) {
-			key.cancel();  // communication with server is broken
-			sc.close(); 
-			return;
+			// Let's print the received message, assuming it is a UTF-8 string
+			// since it is the format of the first message sent to the server.
+			String msg = new String(data, Charset.forName("UTF-8"));
+			System.out.println("NioClient received msg["+nloops+"]: " + msg);
+
+			// Let's make sure we read the message we sent to the server
+			byte[] md5 = md5(data);
+			if (!md5check(digest, md5)) {
+				System.out.println("Checksum Error!");
+				return;
+			}
+			// send back the received message
+			//send(data, 0, data.length);
+			
+			nloops++;
 		}
 
-		byte[] data = new byte[inBuffer.position()];
-		
-		inBuffer.rewind();
-		inBuffer.get(data);
-
-		// Let's make sure we read the message we sent to the server
-		byte[] md5 = md5(data);
-		if (!md5check(digest, md5)) {
-			System.out.println("Checksum Error!");
-			return;
-		}
-
-		// Let's print the received message, assuming it is a UTF-8 string
-		// since it is the format of the first message sent to the server.
-		String msg = new String(data, Charset.forName("UTF-8"));
-		System.out.println("NioClient received msg["+nloops+"]: " + msg);
-
-		// send back the received message
-		//send(data, 0, data.length);
-		
-		nloops++;
 	}
 
 	/**
@@ -175,20 +170,23 @@ public class NioClient {
 	private void handleWrite(SelectionKey key) throws IOException {
 		assert (this.skey == key);
 		assert (sc == key.channel());
-		// write the output buffer to the socket channel
-		sc.write(outBuffer);
-		// remove the write interest & set READ interest
-		key.interestOps(SelectionKey.OP_READ);
+
+		if(automata.writer.handleWrite()) {
+			System.out.println("write ok");
+			key.interestOps(SelectionKey.OP_READ);
+		}
+			
 	}
 
 	/**
 	 * Send the given data
 	 * 
 	 * @param data: the byte array that should be sent
+	 * @throws IOException 
 	 */
-	public void send(byte[] data, int offset, int count) {
-		// this is not optimized, we should try to reuse the same ByteBuffer
-		outBuffer = ByteBuffer.wrap(data, offset, count);
+	public void send(byte[] data) throws IOException {
+		
+		automata.writer.sendMsg(data);
 
 		// register a WRITE interest
 		skey.interestOps(SelectionKey.OP_WRITE);
