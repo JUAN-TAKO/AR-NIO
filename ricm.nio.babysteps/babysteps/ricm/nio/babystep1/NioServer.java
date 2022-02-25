@@ -12,6 +12,8 @@ import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
 import java.util.Iterator;
 
+import ricm.nio.babystep2.ReaderAutomata;
+
 /**
  * NIO elementary server 
  * Implements an overly simplified echo server system
@@ -107,9 +109,9 @@ public class NioServer {
 		// get a client channel as result
 		sc = ssc.accept();
 		sc.configureBlocking(false);
-
 		// register a READ interest on sc to receive the message sent by the client
-		sc.register(selector, SelectionKey.OP_READ);
+		SelectionKey k = sc.register(selector, SelectionKey.OP_READ);
+		k.attach(new ReaderAutomata());
 	}
 
 	/**
@@ -130,28 +132,20 @@ public class NioServer {
 	private void handleRead(SelectionKey key) throws IOException {
 		assert (skey != key);
 		assert (ssc != key.channel());
-
-		// get the socket channel on which the incoming data waits to be received
+		
 		SocketChannel sc = (SocketChannel) key.channel();
-
-		inBuffer = ByteBuffer.allocate(INBUFFER_SZ);
-		int n = sc.read(inBuffer);
-		if (n == -1) {
-			key.cancel();
-			sc.close(); 
-			return;
+		ReaderAutomata reader = (ReaderAutomata)key.attachment();
+		reader.handleRead(key);
+		
+		if(reader.available()) {
+			byte[] data = reader.get();
+			String msg = new String(data,Charset.forName("UTF-8"));
+			System.out.println("NioServer received: " + msg);
+			// echo back the same message to the client
+			send(sc, data, 0, data.length);
 		}
-
-		// process the received data
-		byte[] data = new byte[inBuffer.position()];
-		inBuffer.rewind();
-		inBuffer.get(data,0,data.length);
-
-		String msg = new String(data,Charset.forName("UTF-8"));
-		System.out.println("NioServer received: " + msg);
-
-		// echo back the same message to the client
-		send(sc, data, 0, data.length);		
+		
+				
 	}
 
 	/**
