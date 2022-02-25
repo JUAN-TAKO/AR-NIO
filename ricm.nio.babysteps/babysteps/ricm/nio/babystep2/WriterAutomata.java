@@ -66,7 +66,7 @@ public class WriterAutomata {
 			System.out.println("writing msg");
 			byte[] msg = queue.peek();
 			int w = Math.min(length - written, buffer.capacity() - buffer.position());
-			buffer.put(msg, 0, w);
+			buffer.put(msg, written, w);
 			written += w;
 			write();
 			if(written == length) {

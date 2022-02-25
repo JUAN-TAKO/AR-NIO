@@ -20,6 +20,7 @@ public class ReaderAutomata {
 	}
 	
 	private boolean read() throws IOException {
+		System.out.println("f read");
 		SocketChannel sc = (SocketChannel) key.channel();
 		buffer.rewind();
 		int n = sc.read(buffer);
@@ -48,7 +49,8 @@ public class ReaderAutomata {
 				read();
 			u = buffer.capacity() - buffer.position();
 			int r = Math.min(u, length - bytes_read);
-			buffer.get(data, 0, r);
+			buffer.get(data, bytes_read, r);
+			System.out.println("data " + new String(data));
 			bytes_read += r;
 			System.out.println("bytes read " + bytes_read);
 			System.out.println("remaining " + (length - bytes_read));
