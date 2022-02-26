@@ -50,7 +50,6 @@ public class ReaderAutomata {
 			u = buffer.capacity() - buffer.position();
 			int r = Math.min(u, length - bytes_read);
 			buffer.get(data, bytes_read, r);
-			System.out.println("data " + new String(data));
 			bytes_read += r;
 			System.out.println("bytes read " + bytes_read);
 			System.out.println("remaining " + (length - bytes_read));
