@@ -197,7 +197,7 @@ public class NioClient {
 	public static void main(String args[]) throws IOException {
 		int serverPort = NioServer.DEFAULT_SERVER_PORT;
 		String serverAddress = "localhost";
-		String msg = "Hello There... gyvuidyiaehbfzuajzn x q a joivcuzbozydg uiopmkjg 1234567890 *****";
+		String msg = "Hello There... gyvuidyiaehbfzuajzn ";
 		String arg;
 
 		for (int i = 0; i < args.length; i++) {
